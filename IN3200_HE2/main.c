@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <mpi.h>
 
+void single_layer_convolution(int M, int N, float **input, int K, float **kernel, float **output);
 void MPI_single_layer_convolution(int M, int N, float **input, int K, float **kernel, float **output);
 
 int main (int nargs, char **args) {
