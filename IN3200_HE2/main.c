@@ -37,9 +37,17 @@ int main (int nargs, char **args) {
             input[i] = &(input[0][i * N]);
         }
         // allocate 2D array ’output’ with M-K+1 rows and N-K+1 columns
-        output = (float **) calloc((M-K+1) * (N-K+1), sizeof(float));
+        output = (float **) malloc((M-K+1) * (N-K+1) * sizeof(float *));
+        output[0] = (float *) calloc((M-K+1) * (N-K+1), sizeof(float));
+        for (i = 1; i <= M-K; i++) {
+            output[i] = &(output[0][i * (N-K+1)]);
+        }
         // allocate the convolutional kernel with K rows and K columns
-        kernel = (float **) calloc(K * K, sizeof(float));
+        kernel = (float **) malloc(K * K * sizeof(float));
+        kernel[0] = (float *) calloc(K * K, sizeof(float));
+        for (i = 1; i <= K; i++) {
+            kernel[i] = &(kernel[0][i * K]);
+        }
         // fill 2D array ’input’ with some values
         for (i = 0; i < M; i++) {
             for (j = 0; j < N; j++) {
@@ -78,12 +86,17 @@ int main (int nargs, char **args) {
     if (my_rank>0) {
         // allocated the convolutional kernel with K rows and K columns
         // ...
-
+        kernel = (float **) malloc(K * K * sizeof(float));
+        kernel[0] = (float *) calloc(K * K, sizeof(float));
+        for (i = 1; i <= K; i++) {
+            kernel[i] = &(kernel[0][i * K]);
+        }
     }
     // process 0 broadcasts the content of kernel to all the other processes
     // ...
+    MPI_Scatterv();
     // parallel computation of a single-layer convolution
-    //MPI_single_layer_convolution(M, N, input, K, kernel, output);
+    MPI_single_layer_convolution(M, N, input, K, kernel, output);
     if (my_rank==0) {
         // For example, compare the content of array ’output’ with that is
         // produced by the sequential function single_layer_convolution
