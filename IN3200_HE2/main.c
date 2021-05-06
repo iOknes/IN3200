@@ -7,11 +7,14 @@ void MPI_single_layer_convolution(int M, int N, float **input, int K, float **ke
 
 int main (int nargs, char **args) {
 	int i, j, k;
-    int M = 0, N = 0, K = 0, my_rank, size;
+    int M = 0, N = 0, K = 0, my_rank, size, n_jobs, remainder, tot_displ;
     float **input = NULL, **output = NULL, **kernel = NULL;
+
+	n_jobs = M - K + 1;
+
     MPI_Init(&nargs, &args);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+
     if (my_rank == 0) {
 		// read from command line the values of M, N, and K
 		if (nargs >= 4) {
@@ -36,15 +39,15 @@ int main (int nargs, char **args) {
             input[i] = &(input[0][i * N]);
         }
 		// allocate 2D array ’output’ with M-K+1 rows and N-K+1 columns
-		output = (float **) malloc((M-K+1) * (N-K+1) * sizeof(float *));
+		output = (float **) malloc((M-K+1) * sizeof(float *));
         output[0] = (float *) calloc((M-K+1) * (N-K+1), sizeof(float));
         for (i = 1; i <= M-K; i++) {
             output[i] = &(output[0][i * (N-K+1)]);
         }
 		// allocate the convolutional kernel with K rows and K columns
-		kernel = (float **) malloc(K * K * sizeof(float));
+		kernel = (float **) malloc(K * sizeof(float));
         kernel[0] = (float *) calloc(K * K, sizeof(float));
-        for (i = 1; i <= K; i++) {
+        for (i = 1; i < K; i++) {
             kernel[i] = &(kernel[0][i * K]);
         }
 		// fill 2D array ’input’ with some values
@@ -70,36 +73,81 @@ int main (int nargs, char **args) {
 	}
 	// process 0 broadcasts values of M, N, K to all the other processes
 	// ...
-	int *input_sendcounts = malloc(size * sizeof(int));
-	int *input_displs = malloc(size * sizeof(int));
-	int *input_recvbuf = malloc(size * sizeof(int));
-	int input_recvcount = 0;
-	MPI_Scatterv(input[0], input_sendcounts, input_displs, MPI_FLOAT, input_recvbuf, input_recvcount, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(M, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(N, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(K, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
 	if (my_rank>0) {
 		// allocated the convolutional kernel with K rows and K columns
 		// ...
-		kernel = (float **) malloc(K * K * sizeof(float));
+		kernel = (float **) malloc(K * sizeof(float));
         kernel[0] = (float *) calloc(K * K, sizeof(float));
-        for (i = 1; i <= K; i++) {
+        for (i = 1; i < K; i++) {
             kernel[i] = &(kernel[0][i * K]);
         }
 	}
 	// process 0 broadcasts the content of kernel to all the other processes
 	// ...
-	int *kernel_sendcounts, *kernel_displs, *kernel_recvbuf, *kernel_recvcount;
-	MPI_Scatterv(kernel[0], kernel_sendcounts, kernel_displs, MPI_FLOAT, kernel_recvbuf, kernel_recvcount, MPI_FLOAT, 0, MPI_COMM_WORLD);
+	MPI_Bcast(kernel[0], K * K, MPI_FLOAT, 0, MPI_COMM_WORLD);
 	// parallel computation of a single-layer convolution
 	MPI_single_layer_convolution (M, N, input, K, kernel, output);
 	if (my_rank == 0) {
+		int **singlethread_output;
+		int comparison = 1;
 		// For example, compare the content of array ’output’ with that is
 		// produced by the sequential function single_layer_convolution
 		// ... 
+		singlethread_output = (float **) malloc((M-K+1) * sizeof(float *));
+        singlethread_output[0] = (float *) calloc((M-K+1) * (N-K+1), sizeof(float));
+        for (i = 1; i <= M-K; i++) {
+            singlethread_output[i] = &(singlethread_output[0][i * (N-K+1)]);
+        }
+		
+		single_layer_convolution(M, N, input, K, kernel, singlethread_output);
+
+		for (i = 0; i < M; i++) {
+			for (j = 0; j < N; j++) {
+				comparison *= singlethread_output[i][j] == output[i][j];
+			}
+		}
 	}
     MPI_Finalize();
 	return 0;
 }
 
 void MPI_single_layer_convolution(int M, int N, float **input, int K, float **kernel, float **output) {
+	int i, j, ii, jj;
+	int my_rank, size, remainder, n_jobs;
+	double temp;
+
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+
+	int *input_sendcounts = malloc(size * sizeof(int));
+	int *input_displs = malloc(size * sizeof(int));
+	remainder = n_jobs % size;
+    for (i = 0; i < size; i++) {
+        input_sendcounts[i] = (n_jobs / size) * N;
+    }
+	if (remainder != 0) {
+		for (i = 0; i < remainder; i++) {
+			input_sendcounts[i] += N;
+		}
+	}
+	input_displs[0] = 0;
+	for (i = 1; i < size; i++) {
+		input_displs[i] = input_displs[i-1] + input_sendcounts[i-1];
+	}
+	// Send enough data to each thread so that they can do all their calculations
+	/* This is done after displacement is calculated so that the K-1 next rows
+	that are erquired for the calculations are also sent, but with overlap.*/
+	for (i = 0; i < size; i++) {
+		input_sendcounts[i] += (K - 1) * N;
+	}
+
+	int input_recvcount = input_sendcounts[my_rank];
+	int *input_recvbuf = malloc(input_recvcount * sizeof(int));
+	MPI_Scatterv(input[0], input_sendcounts, input_displs, MPI_FLOAT, input_recvbuf, input_recvcount, MPI_FLOAT, 0, MPI_COMM_WORLD);
 	
 }
 

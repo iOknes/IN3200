@@ -57,7 +57,7 @@ int main(int nargs, char **args) {
         } putchar('\n');
     }
 
-    recvbuf = (int *) malloc(100 * sizeof(int));
+    recvbuf = (int *) malloc(sendcounts[my_rank] * sizeof(int));
     MPI_Scatterv(array[0], sendcounts, displs, MPI_INT, recvbuf, sendcounts[0], MPI_INT, 0, MPI_COMM_WORLD);
 
     for (i = 0; i < sendcounts[my_rank]; i++) {
