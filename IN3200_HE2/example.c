@@ -7,8 +7,6 @@
 int main(int argc, char *argv[])
 {
     int rank, size;     // for storing this process' rank, and the number of processes
-    // int *sendcounts;    // array describing how many elements to send to each process
-    // int *displs;        // array describing the displacements where each segment begins
     
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -19,7 +17,7 @@ int main(int argc, char *argv[])
 
     int rem = (SIZE*SIZE)%size; // elements remaining after division among processes
     int sum = 0;                // Sum of counts. Used to calculate displacements
-    char rec_buf[100];          // buffer where the received data should be stored
+    char *rec_buf;          // buffer where the received data should be stored
     char **data;
 
     data = (char **) malloc(SIZE * sizeof(char*));
@@ -50,6 +48,8 @@ int main(int argc, char *argv[])
         sum += sendcounts[i];
     }
 
+    rec_buf = (char *) malloc(sendcounts[0] * sizeof(char));
+
     // print calculated send counts and displacements for each process
     if (0 == rank) {
         for (int i = 0; i < size; i++) {
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
     }
 
     // divide the data among processes as described by sendcounts and displs
-    MPI_Scatterv(data[0], sendcounts, displs, MPI_CHAR, &rec_buf, 100, MPI_CHAR, 0, MPI_COMM_WORLD);
+    MPI_Scatterv(data[0], sendcounts, displs, MPI_CHAR, rec_buf, SIZE, MPI_CHAR, 0, MPI_COMM_WORLD);
 
     // print what each process received
     printf("%d: ", rank);
