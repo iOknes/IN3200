@@ -12,10 +12,3 @@ void single_layer_convolution (int M, int N, float **input, int K, float **kerne
         output[i][j] = temp;
     } 
 }
-
-void MPI_single_layer_convolution (int M, int N, float **input, int K, float **kernel, float **output) {
-    int i, j, ii, jj;
-    double temp;
-
-    //MPI_Gatherv();
-}
