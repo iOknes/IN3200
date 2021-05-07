@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <mpi.h>
 
+#include "single_layer_convolution.c"
 #include "MPI_single_layer_convolution.c"
 
 int main (int nargs, char **args) {
