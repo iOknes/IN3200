@@ -6,11 +6,14 @@
 #include "single_layer_convolution.c"
 #include "MPI_single_layer_convolution.c"
 
+void single_layer_convolution (int M, int N, float **input, int K, float **kernel, float **output);
+
 int main (int nargs, char **args) {
 	int i, j, k;
     int M = 0, N = 0, K = 0, my_rank, size;
     float **input = NULL, **output = NULL, **kernel = NULL;
 
+    // Set variables for timing singlethreaded and multithreaded
     time_t mp_start, mp_end, sp_start, sp_end;
     int sp_time, mp_time;
 
@@ -67,6 +70,9 @@ int main (int nargs, char **args) {
                 }
             }
         }
+        /* This kernel and input will match the example in the assignment for
+        M = 8, N = 8,, K = 3. Otherwise, it will leave only the vertical edges
+        of the kernel and the first for columns of the input filled.*/
 	}
 
 	// process 0 broadcasts values of M, N, K to all the other processes
@@ -87,6 +93,7 @@ int main (int nargs, char **args) {
     MPI_Bcast(kernel[0], K * K, MPI_FLOAT, 0, MPI_COMM_WORLD);
 
 	// parallel computation of a single-layer convolution
+    // Timing is done with the RTC of the system, and only on thread 0
 	if (my_rank == 0) {mp_start = time(NULL);}
 	MPI_single_layer_convolution (M, N, input, K, kernel, output);
 	if (my_rank == 0) {mp_end = time(NULL);}
@@ -103,15 +110,21 @@ int main (int nargs, char **args) {
             singlethread_output[i] = &(singlethread_output[0][i * (N-K+1)]);
         }
 		
+        // Time the singlethreaded computation
         sp_start = time(NULL);
 		single_layer_convolution(M, N, input, K, kernel, singlethread_output);
         sp_end = time(NULL);
 		
+        /* Find how many elements are the same between the multithreaded and 
+        singlethreaded results */
 		for (i = 0; i < (M-K+1); i++) {
 			for (j = 0; j < (N-K+1); j++) {
 				comparison += singlethread_output[i][j] == output[i][j];
 			}
 		}
+        /* Print info on how many elements were the same between the arrays, how
+        how long the took to execute and how many times faster the multithreaded
+        implementatin were */
 		printf("Comparing outputs: %d/%d matches.\n", comparison, (M-K+1) * (N-K+1));
         sp_time = (int) (sp_end - sp_start);
         mp_time = (int) (mp_end - mp_start);
@@ -121,4 +134,17 @@ int main (int nargs, char **args) {
 	}
     MPI_Finalize();
 	return 0;
+}
+
+void single_layer_convolution (int M, int N, float **input, int K, float **kernel, float **output){
+  int i, j, ii, jj;
+  double temp;
+  for (i=0; i<=M-K; i++)
+    for (j=0; j<=N-K; j++) {
+       temp = 0.0;
+        for (ii=0; ii<K; ii++)
+            for (jj=0; jj<K; jj++)
+                temp += input[i + ii][j + jj] * kernel[ii][jj];
+        output[i][j] = temp;
+    } 
 }
