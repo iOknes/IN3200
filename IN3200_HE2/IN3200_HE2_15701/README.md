@@ -11,6 +11,9 @@ This creates the executable ```MPI_main```, which can be run by the command:
 where $1 is the numer of threads you would like to run it on.
 The remaining variables are ```$2```: M, ```$3```: N and ```$4```: K.
 
+Task 2.1 can be found in the file ```MPI_single_layer_convolution.c``` which is
+included in ```MPI_main.c``` and run there.
+
 ## What the example code does
 The example code in ```MPI_main.c``` will automatically generate an input array
 and a kernel, which for M = 8, N = 8, K = 3 is the example depicted in the 

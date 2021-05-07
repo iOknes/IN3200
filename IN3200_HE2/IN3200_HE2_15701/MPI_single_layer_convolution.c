@@ -41,7 +41,13 @@ void MPI_single_layer_convolution(int M, int N, float **input, int K, float **ke
 	/* Send enough data to each thread so that they can do all their
 	calculations. This is done after displacement is calculated so that the K-1 
 	following rows that are erquired for each jobs calculations are also sent, 
-	with overlap */
+	with overlap.
+	
+	The additional lines are sent before calculations as opposed to the 
+	alternative of sending data between the threads as they need it. The method
+	of sending all data beforehand means all threads can run independantly of 
+	each other. This means that slowdown on one thread won't propagate to other
+	threads. */
 	for (i = 0; i < size; i++) {
 		input_sendcounts[i] += (K - 1) * N;
 	}
