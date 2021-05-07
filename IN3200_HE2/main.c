@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <mpi.h>
 
+#include "MPI_single_layer_convolution.c"
+
 int main (int nargs, char **args) {
 	int i, j, k;
     int M = 0, N = 0, K = 0, my_rank, size, n_jobs, remainder, tot_displ;
@@ -90,14 +92,11 @@ int main (int nargs, char **args) {
 	// process 0 broadcasts the content of kernel to all the other processes
 	// ...
 	MPI_Bcast(kernel[0], K * K, MPI_FLOAT, 0, MPI_COMM_WORLD);
-	printf("Kernel has been broadcast on thread %d...\n", my_rank);
 	// parallel computation of a single-layer convolution
 	MPI_single_layer_convolution (M, N, input, K, kernel, output);
-	printf("MPI_single_layer_convolution has been completed on thread %d\n", my_rank);
 	if (my_rank == 0) {
 		float **singlethread_output;
-		int comparison = 1;
-		printf("Variables for printing defined on thread %d...\n", my_rank);
+		int comparison = 0;
 		// For example, compare the content of array ’output’ with that is
 		// produced by the sequential function single_layer_convolution
 		// ... 
@@ -106,16 +105,13 @@ int main (int nargs, char **args) {
         for (i = 1; i <= M-K; i++) {
             singlethread_output[i] = &(singlethread_output[0][i * (N-K+1)]);
         }
-		printf("Singlethread output allocated on thread %d...\n", my_rank);
 		
 		single_layer_convolution(M, N, input, K, kernel, singlethread_output);
 		
-		printf("Singlethread output filled on thread %d...\n", my_rank);
-
 		for (i = 0; i < (M-K+1); i++) {
 			for (j = 0; j < (N-K+1); j++) {
 				//printf("Comparing [%d][%d] on thread %d...\n", i, j, my_rank);
-				comparison *= singlethread_output[i][j] == output[i][j];
+				comparison += singlethread_output[i][j] == output[i][j];
 			}
 		}
 		printf("Outputs compared on thread %d. Result: %d!\n", my_rank, comparison);
