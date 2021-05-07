@@ -19,7 +19,7 @@ int main (int nargs, char **args) {
 
     if (my_rank == 0) {
 		// read from command line the values of M, N, and K
-		if (nargs == 4) {
+		if (nargs > 3) {
             // If supplied with run command, use the first three args
             M = atoi(args[1]);
             N = atoi(args[2]);
