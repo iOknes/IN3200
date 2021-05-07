@@ -105,9 +105,7 @@ void MPI_single_layer_convolution(int M, int N, float **input, int K, float **ke
 	each thread has, and the displacement is just the cumulative of the 
 	counts. */
 	for (i = 0; i < size; i++) {
-		// Test this change!
-		output_recvcounts[i] = n_my_jobs * (N - K + 1);
-		//output_recvcounts[i] = ((input_sendcounts[i] / N) - K + 1) * (N - K + 1);
+		output_recvcounts[i] = ((input_sendcounts[i] / N) - K + 1) * (N - K + 1);
 	}
 	output_displs[0] = 0;
 	for (i = 1; i < size; i++) {
